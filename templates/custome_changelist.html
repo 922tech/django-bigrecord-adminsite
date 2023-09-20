@@ -1,0 +1,15 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<form action="">
+
+    {% for field in fieldset.base_fields %}
+    <div class="module aligned">
+        {{ field.label_tag }}
+    </div>
+    {% endfor %}
+</form>
+<div>
+    Hello! this is the admin interface but outside of it!
+</div>
+{% endblock %}
