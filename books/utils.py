@@ -7,6 +7,11 @@ from typing import  Any, Callable
 import xxhash
 
 
+
+def get_field_names(klass):
+    return [field.name for field in Book._meta.get_fields() if field.name != 'id']
+
+
 def generate_random_string():
     x = xxhash.xxh64()
     data = f"Hello, World!{time.time()}".encode()
