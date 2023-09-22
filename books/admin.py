@@ -95,10 +95,11 @@ class Admin(admin.ModelAdmin):
 
                 # raw querying
                 queryparams = get_sql_queryparams(self.model, kwargs)
-                queryset = self.get_queryset(request)
-                l = queryset.raw(
+                SQL = self.model.objects.raw
+                l = SQL(
                     f'SELECT * FROM {self.model._meta.db_table} WHERE ' + queryparams)
-                list(l)[0]
+                object_id = list(l)[0].id
+
                 return redirect("%s/change" % object_id)
 
             except self.model.DoesNotExist:
