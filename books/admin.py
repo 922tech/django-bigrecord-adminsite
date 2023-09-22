@@ -86,12 +86,20 @@ class Admin(admin.ModelAdmin):
         else:
             kwargs = {i: request.POST[i]
                       for i in self.lookup_fields if i in request.POST}
-            print(get_sql_queryparams(self.model, self.lookup_fields))
+            print(get_sql_queryparams(self.model, kwargs))
 
             try:
                 obj = self.model.objects.get(**kwargs)
                 self.fields = get_field_names(self.model)
-                return redirect("%s/change" % (obj.id))
+                object_id = obj.id
+
+                # raw querying
+                queryparams = get_sql_queryparams(self.model, kwargs)
+                queryset = self.get_queryset(request)
+                l = queryset.raw(
+                    f'SELECT * FROM {self.model._meta.db_table} WHERE ' + queryparams)
+                list(l)[0]
+                return redirect("%s/change" % object_id)
 
             except self.model.DoesNotExist:
                 obj = self.model()
