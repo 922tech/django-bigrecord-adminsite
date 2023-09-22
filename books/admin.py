@@ -97,7 +97,8 @@ class Admin(admin.ModelAdmin):
                 queryparams = get_sql_queryparams(self.model, kwargs)
                 SQL = self.model.objects.raw
                 l = SQL(
-                    f'SELECT * FROM {self.model._meta.db_table} WHERE ' + queryparams)
+                    f'SELECT * FROM {self.model._meta.db_table} WHERE ' + queryparams
+                )
                 object_id = list(l)[0].id
 
                 return redirect("%s/change" % object_id)
