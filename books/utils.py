@@ -1,15 +1,16 @@
 
-import string, random, time
+import random
+import time
 from faker import Faker
 from .models import Book
-from django.db import models 
-from typing import  Any, Callable
+from django.db import models
+from typing import Any, Callable
 import xxhash
 
 
-
 def get_field_names(klass):
-    return [field.name for field in Book._meta.get_fields() if field.name != 'id']
+    return [field.name for field in Book._meta.get_fields()
+            if field.name != 'id']
 
 
 def generate_random_string():
@@ -17,6 +18,12 @@ def generate_random_string():
     data = f"Hello, World!{time.time()}".encode()
     x.update(data)
     return x.hexdigest()
+
+
+def get_sql_lookups(lookup_dict, lookup_fields):
+    q = [f"table.{i}=$${j}$$" for (i, j) in lookup_dict.items()
+         if i in lookup_fields]
+    return ''.join(q)
 
 
 class FakeModelFactory:
@@ -27,34 +34,33 @@ class FakeModelFactory:
     fake_field_creator: the function which returns
             a dictionary containing fields and faker implementations
     """
+
     def __init__(
             self,
-            model: models.base.ModelBase, 
-            fake_field_creator:  Callable[[],dict[str, Any]]
-            ):
+            model: models.base.ModelBase,
+            fake_field_creator:  Callable[[], dict[str, Any]]
+    ):
         self.model = model
-        self.fake_field_creator = fake_field_creator 
+        self.fake_field_creator = fake_field_creator
 
     def create_fake_record(self, how_many: int):
-        objs = ( self.model(**self.fake_field_creator()) for _ in range(how_many) )
+        objs = (self.model(**self.fake_field_creator())
+                for _ in range(how_many))
         self.model.objects.bulk_create(objs)
-        
 
 
 def fake_creator() -> dict[str, Any]:
     faker = Faker('en_US')
     DATE = faker.date()
     return {
-    'title':generate_random_string(),
-    'publication_date':DATE,
-    'price':random.randint(10,10000),
-    'serial_number':generate_random_string(),
-    'description':faker.text(random.randint(10,100)),
+        'title': generate_random_string(),
+        'publication_date': DATE,
+        'price': random.randint(10, 10000),
+        'serial_number': generate_random_string(),
+        'description': faker.text(random.randint(10, 100)),
     }
 
 
 def fake_field_creator(how_many=100):
-    fake_category_factory = FakeModelFactory(Book,fake_creator)
+    fake_category_factory = FakeModelFactory(Book, fake_creator)
     fake_category_factory.create_fake_record(how_many)
-
-

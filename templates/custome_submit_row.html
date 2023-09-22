@@ -2,15 +2,10 @@
 <div class="submit-row">
 
 {% block submit-row %}
-<!-- the very Save button only the name is changed to `Find` -->
+    <!-- the very Save button only the name is changed to `Find` -->
+    <input type="submit" value="{% translate 'Find' %}" class="default" >
 
-
-
-<input type="submit" value="{% translate 'Find' %}" class="default" name="_save">
-
-    
+    <!-- this link takes client to the changefrom page -->
     <a href="{% add_preserved_filters changelist_url %}" class="closelink">{% translate 'Clear' %}</a>
-
-
 {% endblock %}
 </div>
