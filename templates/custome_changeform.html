@@ -3,6 +3,7 @@
 {% load custome_submit_row %}
 {% block extrahead %}{{ block.super }}
 <script src="{% url 'admin:jsi18n' %}"></script>
+<script src="{% static 'onBack.js' %}"></script>
 {#{ media }#}
 {% endblock %}
 
@@ -40,10 +41,7 @@
 <form {% if has_file_field %}enctype="multipart/form-data" {% endif %}{% if form_url %}action="{{ form_url }}" {% endif %}method="post" id="{{ opts.model_name }}_form" novalidate>{% csrf_token %}{% block form_top %}{% endblock %}
 <div>
 {% if errors %}
-    <p class="errornote">
-    {% blocktranslate count counter=errors|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
-    </p>
-    {{ messages }}
+    <p class="errornote">{{ not_found_message }}</p>
     {{ adminform.form.non_field_errors }}
 {% endif %}
 
@@ -53,9 +51,7 @@
 {% endfor %}
 {% endblock %}
 
-{% block after_field_sets %}
-
-{% endblock %}
+{% block after_field_sets %}{% endblock %}
 
 {% block inline_field_sets %}
 {% for inline_admin_formset in inline_admin_formsets %}
@@ -68,11 +64,7 @@
 {#% submit_row %#}
 {% custome_submit_row %}
 
-<!-- <div class="submit-row">
-    <button>do</button>
-</div> -->
 {% endblock %}
-<!-- submot row -->
 
 {% block submit_buttons_bottom %}{% endblock %}
 

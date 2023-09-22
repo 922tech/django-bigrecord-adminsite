@@ -8,7 +8,11 @@ from typing import Any, Callable
 import xxhash
 
 
-def get_field_names(klass):
+def get_field_names(model: models.base.ModelBase) -> list[str]:
+    """
+    returns name of all the fields on a model class except
+    for `id` field
+    """
     return [field.name for field in Book._meta.get_fields()
             if field.name != 'id']
 
@@ -20,9 +24,20 @@ def generate_random_string():
     return x.hexdigest()
 
 
-def get_sql_lookups(lookup_dict, lookup_fields):
-    q = [f"table.{i}=$${j}$$" for (i, j) in lookup_dict.items()
-         if i in lookup_fields]
+def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict) -> str:
+    """
+    accepts a dictionary of kwargs and returns a string contains query
+    parameters.
+    example:
+    get_sql_queryparams(Book,{'col1':'something', 'col2':'other_thing'})
+    >>> 'books_book.col1=$$something$$ AND books_book.col2=$$other_thing$$ '
+    """
+    table = model._meta.db_table
+    q = [f"{table}.{i}=$${j}$$ " for (i, j) in lookup_dict.items()]
+    length = len(q)
+    for i in range(length):
+        if i < length - 1:
+            q[i] += 'AND '
     return ''.join(q)
 
 

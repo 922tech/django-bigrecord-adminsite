@@ -39,7 +39,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import redirect
 
 from .models import Book
-from .utils import get_field_names, get_sql_lookups
+from .utils import get_field_names, get_sql_queryparams
 
 csrf_protect_m = method_decorator(csrf_protect)
 
@@ -55,66 +55,54 @@ class SearchOnlyChangeList(ChangeList):
 
 @admin.register(Book)
 class Admin(admin.ModelAdmin):
-
-    # fields = ['title', 'serial_number']
     list_display = ['id', 'title', 'serial_number']
-    lookup_fields = search_fields = ['title']
+    lookup_fields = search_fields = ['title', 'serial_number']
 
-    def get_changelist(self, request, **kwargs):
+    def get_changelist0(self, request, **kwargs):
         """
         This logic renders an empty table that gets filled by searching.
         Does not need to override the changelist_view method.
         """
         return SearchOnlyChangeList
 
-    def changelist_view0(self, request, extra_context=None):
+    def changelist_view(self, request, extra_context=None):
         """
         This logic displays a form like django changeform 
         by which a single record can be retrievd and the 
-        result also would look like a changeform for the 
-        retrived object.
+        client will be redirected to the change form of that
+        particular object.
         """
         # TODO: exception handling while more than one value is fetched
         # TODO: raw the queries
         # TODO: refactor
+        error = False
         message = None
+        obj = self.model()
         cl = self.get_changelist_instance(request)
-        cl.show_all = False
 
-        if not request.POST:
-            obj = self.model()
+        if not any(request.POST):
             self.fields = self.lookup_fields
 
         else:
             kwargs = {i: request.POST[i]
                       for i in self.lookup_fields if i in request.POST}
-            print(get_sql_lookups(kwargs, self.lookup_fields))
-
-            # TODO: change the logic for getting kwargs.
-            # The current one may be sensitive to attacks.
+            print(get_sql_queryparams(self.model, self.lookup_fields))
 
             try:
                 obj = self.model.objects.get(**kwargs)
+                self.fields = get_field_names(self.model)
+                return redirect("%s/change" % (obj.id))
 
             except self.model.DoesNotExist:
-                # message = messages.error(request, "Nothing found!")
-                # print(message)
                 obj = self.model()
-
-            else:
-                label = self.model._meta.app_label
-                model_name = self.model._meta.model_name
-                self.fields = get_field_names(self.model)
-
-                return redirect("%s/change" % (obj.id))
-                return super().change_view(request, str(obj.id), form_url='', extra_context='')
+                message = 'No record found with %s!' % kwargs
+                error = True
 
         fieldsets = self.get_fieldsets(request, obj)
         ModelForm = self.get_form(
             request, obj, change=False, fields=utils.flatten_fieldsets(fieldsets)
         )
         form = ModelForm(instance=obj)
-        # print(dir(form))
         admin_form = helpers.AdminForm(
             form,
             list(fieldsets),
@@ -125,19 +113,7 @@ class Admin(admin.ModelAdmin):
             model_admin=self,
         )
 
-        # cl = self.get_changelist_instance(request)
         cl.formset = None
-        if request.POST:
-            FormSet = self.get_changelist_formset(request)
-            formset = cl.formset = FormSet(queryset=cl.result_list)
-            cl.formset = None
-
-        app_label = self.opts.app_label
-
-        selection_note_all = ngettext(
-            "%(total_count)s selected", "All %(total_count)s selected", cl.result_count
-        )
-
         context = {
             **self.admin_site.each_context(request),
             "cl": cl,
@@ -147,21 +123,8 @@ class Admin(admin.ModelAdmin):
             "model_name": self.model._meta.verbose_name,
             "module_name": str(self.opts.verbose_name_plural),
             "has_view_permission": self.has_view_permission(request),
-            "messages": message,
-            'table_view': True
-
-            # "preserved_filters": self.get_preserved_filters(request),
-            # "selection_note": _("0 of %(cnt)s selected") % {"cnt": len(cl.result_list)},
-            # "selection_note_all": selection_note_all % {"total_count": cl.result_count},
-            # "subtitle": None,
-            # "is_popup": cl.is_popup,
-            # "to_field": cl.to_field,
-            # "media": None,
-            # "action_form": None,
-            # "actions_on_top": self.actions_on_top,
-            # "actions_on_bottom": self.actions_on_bottom,
-            # "actions_selection_counter": self.actions_selection_counter,
-
+            "not_found_message": message,
+            "errors": error
         }
 
         return TemplateResponse(
@@ -173,5 +136,3 @@ class Admin(admin.ModelAdmin):
             ],
             context,
         )
-
-    '''TODO: review `render_change_form` for checking permissions and submit-row'''
