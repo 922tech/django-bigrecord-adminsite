@@ -4,7 +4,7 @@ import time
 from faker import Faker
 from .models import Book
 from django.db import models
-from typing import Any, Callable
+from typing import Any, Callable, Union, Sequence
 import xxhash
 
 
@@ -24,7 +24,7 @@ def generate_random_string():
     return x.hexdigest()
 
 
-def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict) -> str:
+def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='AND') -> str:
     """
     accepts a dictionary of kwargs and returns a string contains query
     parameters.
@@ -33,13 +33,47 @@ def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict) -> str:
     >>> 'books_book.col1=$$something$$ AND books_book.col2=$$other_thing$$ '
     """
     table = model._meta.db_table
-    q = [f"{table}.{i}=$${j}$$ " for (i, j) in lookup_dict.items()]
+    q = [f"{table}.{i}=%$${j}$$% " for (i, j) in lookup_dict.items()]
     length = len(q)
     for i in range(length):
         if i < length - 1:
-            q[i] += 'AND '
+            q[i] += delim+' '
     return ''.join(q)
 
+
+def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, search_param:Any, delim:str= 'AND') -> str:
+    """
+
+    """
+    table = model._meta.db_table
+    q = [f"{table}.{i} ILIKE %s " for i in search_fields]
+    length = len(q)
+    for i in range(length):
+        if i < length - 1:
+            q[i] += delim+' '
+    return ''.join(q)
+
+
+def get_sql_ordering(fields:dict[str, str]):
+    args =  [f" {i} {fields[i]}" for i in fields]
+    for i in range(len(args)-1):
+        args[i] += ','
+        
+    return f'ORDER BY' + ''.join(args)
+
+
+
+
+# class AdminFormSortCode:
+#     def __init__(self, code) -> None:
+#         self.code_list = self.code.split('.')
+        
+#     @property   
+#     def get_ordering_enum(self):
+#         for i in self.code_list:
+#             if i.startswith('-'):
+#                 pass
+    
 
 class FakeModelFactory:
     """
