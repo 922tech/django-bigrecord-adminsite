@@ -16,11 +16,10 @@ class SearchOnlyChangeList(ChangeList):
         for i in order_code.split('.'):
             index = abs(int(i))
             if i.startswith('-'):
-                print(abs(int(i)))
 
                 kwargs.update({self.list_display[index]: 'DESC'})
             else:
-                kwargs.update({self.list_display[index]: 'DESC'})
+                kwargs.update({self.list_display[index]: 'ASC'})
         return kwargs
 
     def get_sql(self, querystring_dict, order_code=0):
