@@ -1,34 +1,43 @@
 
-from pprint import pprint
 from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
 from django.utils.translation import gettext as _
 
 from .models import Book
-from .utils import get_sql_searchparams, get_sql_ordering
+from .utils import get_sql_searchparams
 
 
 class SearchOnlyChangeList(ChangeList):
+    """
+    This class provides an optimized way to make a change list for a django app.
+    It shows am empty table that gets filled on search.
+    It also uses raw SQL queries for optimization purposes.
+    """
 
-    def get_ordering_kwargs(self, order_code):
+    def get_ordering_kwargs(self) -> str:
+        """
+        returns an `ORDER BY ...` SQL clause.
+        Indirectly uses the `o` parameter of changelist request.GET
+        (using `get_ordering_field_columns` method). 
+        """
 
-        kwargs = {}
-        for i in order_code.split('.'):
-            index = abs(int(i))
-            if i.startswith('-'):
+        order_enum = self.get_ordering_field_columns()
+        kwargs = {self.list_display[i]:order_enum[i] for i in order_enum}
+        kwargs_string = 'ORDER BY ' + ', '.join([f'{i} {kwargs[i]}' for i in kwargs])
+        return kwargs_string
 
-                kwargs.update({self.list_display[index]: 'DESC'})
-            else:
-                kwargs.update({self.list_display[index]: 'ASC'})
-        return kwargs
+    def get_sql(self, querystring_dict: dict, order_code: str='') -> str:
+        """
+        param querystring_dict: a dictionary extracted form querystring
+        param oreder_code: a django coding for changelist ordering
+        returns a complete sql query
+        """
 
-    def get_sql(self, querystring_dict, order_code=0):
         searchparams = get_sql_searchparams(
             self.model, self.search_fields, querystring_dict, delim='OR')
 
         if order_code:
-            ordering_enum = self.get_ordering_kwargs(order_code)
-            ordering_params = get_sql_ordering(ordering_enum)
+            ordering_params = self.get_ordering_kwargs()
         else:
             ordering_params = ''
 
@@ -37,8 +46,10 @@ class SearchOnlyChangeList(ChangeList):
         return sql
 
     def get_queryset(self, request):
+        """
+        The main logic of the class is here.
+        """
         request_data = request.GET
-        print(self.get_ordering_field_columns())
         if 'q' in request_data:
             querystring_dict = request_data['q']
 
@@ -64,11 +75,6 @@ class Admin(admin.ModelAdmin):
     lookup_fields = search_fields = ['title', 'serial_number', 'description']
 
     def get_changelist(self, request, **kwargs):
-        """
-        This logic cause rendering an empty table  on the app page
-        in django admin site that gets filled by searching.
-        Does not need to override the changelist_view method.
-        """
         return SearchOnlyChangeList
 
     # def changelist_view0(self, request, extra_context=None):
