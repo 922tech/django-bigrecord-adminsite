@@ -9,8 +9,7 @@ from django.utils.translation import gettext as _
 
 from .models import Book
 from .utils import get_field_names, get_sql_queryparams, get_sql_searchparams, get_sql_ordering
-'''SELECT "books_book"."id", "books_book"."title", "books_book"."publication_date", "books_book"."price", "books_book"."serial_number", "books_book"."description" FROM "books_book"
-'''
+
 
 class SearchOnlyChangeList(ChangeList):
 
@@ -20,61 +19,58 @@ class SearchOnlyChangeList(ChangeList):
             index = abs(int(i))
             if i.startswith('-'):
                 print(abs(int(i)))
-                
-                dic.update({self.list_display[index]:'DESC'})
+
+                dic.update({self.list_display[index]: 'DESC'})
             else:
-                dic.update({self.list_display[index]:'DESC'})
+                dic.update({self.list_display[index]: 'DESC'})
         return dic
-                
+
     def get_queryset(self, request):
         request_data = request.GET
-        
-        from time import perf_counter
 
-        start_time = perf_counter()
         if 'q' in request_data:
             querystring_dict = request_data['q']
-            
-            searchparams = get_sql_searchparams(self.model, self.search_fields, querystring_dict, delim='OR')
+
+            searchparams = get_sql_searchparams(
+                self.model, self.search_fields, querystring_dict, delim='OR')
             if 'o' in request_data:
                 order_code = request_data['o']
                 ordering_enum = self.get_ordering_kwargs(order_code)
                 ordering_params = get_sql_ordering(ordering_enum)
             else:
                 ordering_params = ''
+            print(self.root_queryset.query)
+            SQL = self.root_queryset.query + ' WHERE ' + \
+                searchparams + ordering_params #+ ' LIMIT 100'
 
-            SQL = 'SELECT * FROM ' + self.opts.db_table+ ' WHERE ' + searchparams + ordering_params + ' LIMIT 100'
+            query = self.model.objects.raw(
+                SQL, [f'%{request_data["q"]}%']*len(self.search_fields))
 
-            query = self.model.objects.raw(SQL, [ f'%{request_data["q"]}%' ]*len(self.search_fields) )
-            # TODO: ordering query from list_display
-
-            # print('\nsql: ',query.query,'\n')
-            end_time = perf_counter()
-            print(end_time - start_time)
             return query
             return super().get_queryset(request)
-        
+
         else:
             return self.root_queryset.none()
-        
+
 
 @admin.register(Book)
 class Admin(admin.ModelAdmin):
 
     list_display = ['id', 'title', 'serial_number']
     lookup_fields = search_fields = ['title', 'serial_number', 'description']
-    
+
     def get_changelist(self, request, **kwargs):
         """
-        This logic renders an empty table that gets filled by searching.
+        This logic cause rendering an empty table  on the app page
+        in django admin site that gets filled by searching.
         Does not need to override the changelist_view method.
         """
         return SearchOnlyChangeList
 
     # def changelist_view0(self, request, extra_context=None):
     #     """
-    #     This logic displays a form like django changeform 
-    #     by which a single record can be retrievd and the 
+    #     This logic displays a form like django changeform
+    #     by which a single record can be retrievd and the
     #     client will be redirected to the change form of that
     #     particular object.
     #     """

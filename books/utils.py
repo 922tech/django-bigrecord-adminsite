@@ -27,10 +27,18 @@ def generate_random_string():
 def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='AND') -> str:
     """
     accepts a dictionary of kwargs and returns a string contains query
-    parameters.
+    parameters. It is indented to  use in creation of a SQL WHERE clause.
+
+    param `model`: the django model
+    param `lookup_dict`: a dictionary containing the kwargs.
+    param `delim`: a string containing keywords like `AND` , `OR` etc. that
+                 comes amongst the conditions.
+
     example:
+    ```
     get_sql_queryparams(Book,{'col1':'something', 'col2':'other_thing'})
     >>> 'books_book.col1=$$something$$ AND books_book.col2=$$other_thing$$ '
+    ```
     """
     table = model._meta.db_table
     q = [f"{table}.{i}=%$${j}$$% " for (i, j) in lookup_dict.items()]
@@ -41,12 +49,26 @@ def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='
     return ''.join(q)
 
 
-def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, search_param:Any, delim:str= 'AND') -> str:
+def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, search_param: Any, delim: str = 'AND') -> str:
     """
+    This function is intended to be used for creating a query for searchnig in a model.
+    param `model`: the django model to be searched. It should represent the db table that 
+                 will be searched.
+    param `search_fields`: the table columns to be searched
+    param `search_param`: the thing that you want to find in the db.
+    param `delim`: a string containing keywords like `AND` , `OR` etc. that
+                 comes amongst the conditions.
 
+    example:
+    ```
+    get_sql_searchparams(Book, ['col1', 'col2'], 'plant')
+    >>> 'UPPER(books_book.col1::text) ILIKE %s AND UPPER(books_book.col2::text) ILIKE %s '
+    ```
     """
     table = model._meta.db_table
-    q = [f"{table}.{i} ILIKE %s " for i in search_fields]
+    q = [f"LOWER({table}.{i}::text) LIKE LOWER(%s::text) " for i in search_fields]
+    # Using LIKE was more efficient than ILIKE in the tests
+    # Use of lowercasing along with  `LIKE` was a more efficient way than using `ILIKE`
     length = len(q)
     for i in range(length):
         if i < length - 1:
@@ -54,26 +76,24 @@ def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, 
     return ''.join(q)
 
 
-def get_sql_ordering(fields:dict[str, str]):
-    args =  [f" {i} {fields[i]}" for i in fields]
+def get_sql_ordering(fields: dict[str, str]):
+    args = [f" {i} {fields[i]}" for i in fields]
     for i in range(len(args)-1):
         args[i] += ','
-        
+
     return f'ORDER BY' + ''.join(args)
-
-
 
 
 # class AdminFormSortCode:
 #     def __init__(self, code) -> None:
 #         self.code_list = self.code.split('.')
-        
-#     @property   
+
+#     @property
 #     def get_ordering_enum(self):
 #         for i in self.code_list:
 #             if i.startswith('-'):
 #                 pass
-    
+
 
 class FakeModelFactory:
     """
