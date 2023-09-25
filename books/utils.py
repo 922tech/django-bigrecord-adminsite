@@ -24,6 +24,10 @@ def generate_random_string():
     return x.hexdigest()
 
 
+def get_fields(model: models.base.ModelBase):
+    table = model._meta.db_table
+
+
 def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='AND') -> str:
     """
     accepts a dictionary of kwargs and returns a string contains query
@@ -82,17 +86,6 @@ def get_sql_ordering(fields: dict[str, str]):
         args[i] += ','
 
     return f'ORDER BY' + ''.join(args)
-
-
-# class AdminFormSortCode:
-#     def __init__(self, code) -> None:
-#         self.code_list = self.code.split('.')
-
-#     @property
-#     def get_ordering_enum(self):
-#         for i in self.code_list:
-#             if i.startswith('-'):
-#                 pass
 
 
 class FakeModelFactory:

@@ -1,53 +1,58 @@
 
 from pprint import pprint
 from django.contrib import admin
-from django.contrib.admin import helpers, utils
 from django.contrib.admin.views.main import ChangeList
-from django.shortcuts import redirect
-from django.template.response import TemplateResponse
 from django.utils.translation import gettext as _
 
 from .models import Book
-from .utils import get_field_names, get_sql_queryparams, get_sql_searchparams, get_sql_ordering
+from .utils import get_sql_searchparams, get_sql_ordering
 
 
 class SearchOnlyChangeList(ChangeList):
 
     def get_ordering_kwargs(self, order_code):
-        dic = {}
+
+        kwargs = {}
         for i in order_code.split('.'):
             index = abs(int(i))
             if i.startswith('-'):
                 print(abs(int(i)))
 
-                dic.update({self.list_display[index]: 'DESC'})
+                kwargs.update({self.list_display[index]: 'DESC'})
             else:
-                dic.update({self.list_display[index]: 'DESC'})
-        return dic
+                kwargs.update({self.list_display[index]: 'DESC'})
+        return kwargs
+
+    def get_sql(self, querystring_dict, order_code=0):
+        searchparams = get_sql_searchparams(
+            self.model, self.search_fields, querystring_dict, delim='OR')
+
+        if order_code:
+            ordering_enum = self.get_ordering_kwargs(order_code)
+            ordering_params = get_sql_ordering(ordering_enum)
+        else:
+            ordering_params = ''
+
+        sql = str(self.root_queryset.query) + f' {self.model._meta.db_table}' + \
+            ' WHERE ' + searchparams + ordering_params  # + ' LIMIT 100'
+        return sql
 
     def get_queryset(self, request):
         request_data = request.GET
-
+        print(self.get_ordering_field_columns())
         if 'q' in request_data:
             querystring_dict = request_data['q']
 
-            searchparams = get_sql_searchparams(
-                self.model, self.search_fields, querystring_dict, delim='OR')
             if 'o' in request_data:
                 order_code = request_data['o']
-                ordering_enum = self.get_ordering_kwargs(order_code)
-                ordering_params = get_sql_ordering(ordering_enum)
             else:
-                ordering_params = ''
-            print(self.root_queryset.query)
-            SQL = self.root_queryset.query + ' WHERE ' + \
-                searchparams + ordering_params #+ ' LIMIT 100'
+                order_code = 0
 
+            SQL = self.get_sql(querystring_dict, order_code)
             query = self.model.objects.raw(
                 SQL, [f'%{request_data["q"]}%']*len(self.search_fields))
 
             return query
-            return super().get_queryset(request)
 
         else:
             return self.root_queryset.none()
