@@ -66,7 +66,7 @@ def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, 
     example:
     ```
     get_sql_searchparams(Book, ['col1', 'col2'], 'plant')
-    >>> 'UPPER(books_book.col1::text) ILIKE %s AND UPPER(books_book.col2::text) ILIKE %s '
+    >>> 'UPPER(books_book.col1::text) LIKE %s AND UPPER(books_book.col2::text) LIKE %s '
     ```
     """
     table = model._meta.db_table

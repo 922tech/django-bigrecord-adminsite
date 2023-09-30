@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'debug_toolbar',
 
     'books',
+    'blog'
 ]
 
 MIDDLEWARE = [
@@ -96,7 +97,7 @@ WSGI_APPLICATION = 'project_config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'fake_books',
+        'NAME': 'test_db',
         'USER': 'postgres',
         'PASSWORD': '1234',
         'HOST': 'localhost',
