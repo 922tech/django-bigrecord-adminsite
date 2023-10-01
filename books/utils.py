@@ -24,11 +24,11 @@ def generate_random_string():
     return x.hexdigest()
 
 
-def get_fields(model: models.base.ModelBase):
+def get_fields(model: models.Model):
     table = model._meta.db_table
 
 
-def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='AND') -> str:
+def get_sql_queryparams(model: models.Model, lookup_dict: dict, delim='AND') -> str:
     """
     accepts a dictionary of kwargs and returns a string contains query
     parameters. It is indented to  use in creation of a SQL WHERE clause.
@@ -40,7 +40,7 @@ def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='
 
     example:
     ```
-    get_sql_queryparams(Book,{'col1':'something', 'col2':'other_thing'})
+    >>> get_sql_queryparams(Book,{'col1':'something', 'col2':'other_thing'})
     >>> 'books_book.col1=$$something$$ AND books_book.col2=$$other_thing$$ '
     ```
     """
@@ -53,7 +53,7 @@ def get_sql_queryparams(model: models.base.ModelBase, lookup_dict: dict, delim='
     return ''.join(q)
 
 
-def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, search_param: Any, delim: str = 'AND') -> str:
+def get_sql_searchparams(model: models.Model, search_fields: Sequence, search_param: Any, delim: str = 'AND') -> str:
     """
     This function is intended to be used for creating a query for searchnig in a model.
     param `model`: the django model to be searched. It should represent the db table that 
@@ -65,7 +65,7 @@ def get_sql_searchparams(model: models.base.ModelBase, search_fields: Sequence, 
 
     example:
     ```
-    get_sql_searchparams(Book, ['col1', 'col2'], 'plant')
+    >>> get_sql_searchparams(Book, ['col1', 'col2'], 'plant')
     >>> 'UPPER(books_book.col1::text) LIKE %s AND UPPER(books_book.col2::text) LIKE %s '
     ```
     """
@@ -85,7 +85,7 @@ def get_sql_ordering(fields: dict[str, str]):
     for i in range(len(args)-1):
         args[i] += ','
 
-    return f'ORDER BY' + ''.join(args)
+    return 'ORDER BY' + ''.join(args)
 
 
 class FakeModelFactory:
@@ -99,7 +99,7 @@ class FakeModelFactory:
 
     def __init__(
             self,
-            model: models.base.ModelBase,
+            model: models.Model,
             fake_field_creator:  Callable[[], dict[str, Any]]
     ):
         self.model = model
