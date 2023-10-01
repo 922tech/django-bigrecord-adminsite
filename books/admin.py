@@ -1,13 +1,17 @@
 from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
+from django.utils.functional import cached_property
 
 from .models import Book
 from django.core.paginator import Paginator
 # from .utils import get_sql_searchparams
 
 
-class BigRecordPaginator(Paginator):
-    pass
+class NonPaginator(Paginator):
+    @cached_property
+    def count(self):
+        return 0
+
 
 
 class SearchOnlyChangeList(ChangeList):
@@ -116,6 +120,7 @@ class Admin(admin.ModelAdmin):
     list_display = ['id', 'title', 'serial_number', 'publication_date']
     lookup_fields = ['title']
     search_fields = ["title", 'serial_number']
+    paginator = NonPaginator
 
     def get_changelist(self, request, **kwargs):
         # cl = self.get_changelist_instance(request)
