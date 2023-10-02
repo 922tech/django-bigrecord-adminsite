@@ -1,0 +1,54 @@
+{% extends "admin/change_list.html" %}
+{% load admin_list static %}
+
+{% block blockbots %}
+  {{ block.super }}
+{#    <script src="{% static 'js/custome_pagination.js' %}"></script>#}
+    <script>
+
+
+    function setNextPage(isNextPage, el) {
+
+
+        el = document.getElementById(el);
+        const qString = new URLSearchParams(el.href)
+
+        {#if (qString.get('q') == null) {return}#}
+
+        const pageNumber = qString.get('p')
+
+        if (qString.get('p') != null) {
+            qString.set('p', isNextPage?(parseInt(pageNumber) + 1).toString(): (parseInt(pageNumber) - 1))
+        }
+        else {
+            qString.set('p', isNextPage?'2':'1')
+        }
+
+        el.href = decodeURIComponent(qString.toString())
+    }
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    window.addEventListener('load', () => setNextPage(false, 'prevBtn'))
+    window.addEventListener('load', () => setNextPage(true, 'nextBtn'))
+    let b = document.getElementById('btnn')
+
+    </script>
+{% endblock %}
+
+{% block search %}
+    {{ block.super }}
+
+
+{##}
+{#    <label for="page-size">Page Size: </label>#}
+{#    <input id="page-size" type="text"  placeholder="page size">#}
+{% endblock %}
+{% block pagination %}
+{#    {{ page_range }}#}
+    <p class="paginator">
+        <a id="prevBtn" href="" onload="setNextPage()">prev</a>
+        <a id="nextBtn" href="">next</a>
+    </p>
+
+{#        {% pagination cl %}#}
+{% endblock %}

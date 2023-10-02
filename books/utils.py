@@ -1,4 +1,4 @@
-
+import re
 import random
 import time
 from faker import Faker
@@ -8,7 +8,16 @@ from typing import Any, Callable, Union, Sequence
 import xxhash
 
 
-def get_field_names(model: models.base.ModelBase) -> list[str]:
+def count_results(self):
+    """
+    separates everything that comes after 'FROM' including `FROM`
+    from an SQL query. useful for purifying the django base query
+    for a given queryset.
+    """
+    pattern = r'(?=FROM)(.*)'
+    clause = re.findall(pattern, str(self.root_queryset.query))
+def get_field_names(model:
+models.base.ModelBase) -> list[str]:
     """
     returns name of all the fields on a model class except
     for `id` field

@@ -1,17 +1,24 @@
+import inspect
 from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
 from django.utils.functional import cached_property
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Book
 from django.core.paginator import Paginator
+
+
 # from .utils import get_sql_searchparams
 
 
 class NonPaginator(Paginator):
     @cached_property
     def count(self):
-        return 0
-
+        """
+        Important! This method should return the exact value
+        of list_per_page attribute of the admin class
+        """
+        return 10
 
 
 class SearchOnlyChangeList(ChangeList):
@@ -67,7 +74,7 @@ class SearchOnlyChangeList(ChangeList):
 
         return kwargs_string
 
-    def get_sql(self, order_code: str = '') -> str:
+    def get_sql(self, order_code: str = '', page_number=1) -> str:
         """
         param `order_code`: a django coding for changelist ordering
         returns a complete sql query
@@ -78,9 +85,12 @@ class SearchOnlyChangeList(ChangeList):
             ordering_params = self.get_ordering_kwargs()
         else:
             ordering_params = ''
+            ordering_params = 'ORDER BY id asc'
 
         sql = str(self.root_queryset.query) + f' {self.opts.db_table}' + \
-              ' WHERE ' + searchparams + ordering_params  # + ' LIMIT 100'
+              ' WHERE ' + searchparams + ordering_params \
+              + f' LIMIT {self.list_per_page}' + f' OFFSET {page_number * self.list_per_page - self.list_per_page}'
+
         return sql
 
     def get_search_queryset(self, sql_string, request_data):
@@ -102,7 +112,11 @@ class SearchOnlyChangeList(ChangeList):
             else:
                 order_code = 0
 
-            sql_string = self.get_sql(order_code)
+            if 'p' in request_data:
+                page_number = int(request_data['p'])
+            else:
+                page_number = 1
+            sql_string = self.get_sql(order_code, page_number)
             # query = self.model.objects.raw(
             #     sql_string, [f'%{request_data["q"]}%'] * len(self.search_fields)
             # )
@@ -112,6 +126,9 @@ class SearchOnlyChangeList(ChangeList):
         else:
             return self.root_queryset.none()
 
+    def pagination_required(self, request):
+        return
+
 
 @admin.register(Book)
 class Admin(admin.ModelAdmin):
@@ -120,20 +137,15 @@ class Admin(admin.ModelAdmin):
     list_display = ['id', 'title', 'serial_number', 'publication_date']
     lookup_fields = ['title']
     search_fields = ["title", 'serial_number']
-    paginator = NonPaginator
+    list_per_page = 15
+    paginator_cls = NonPaginator
+    paginator_cls.count = list_per_page
+    paginator = paginator_cls
+    # the value of list_per_page should be equal to the value of NonPaginator.count
 
     def get_changelist(self, request, **kwargs):
-        # cl = self.get_changelist_instance(request)
         return SearchOnlyChangeList
 
-    def get_changelist_instance(self, request):
-        cl = super().get_changelist_instance(request)
-        print(cl.queryset)
-        return cl
-
-# def get_paginator(
-    #     self, request, queryset, per_page, orphans=0, allow_empty_first_page=True
-    # ):
-    #     cl = self.get_changelist_instance(request)
-    #     return self.paginator(queryset, per_page, orphans, allow_empty_first_page)
-    #     return self.paginator(cl.get_queryset(request), per_page, orphans, allow_empty_first_page)
+    @csrf_exempt
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(request, extra_context)
