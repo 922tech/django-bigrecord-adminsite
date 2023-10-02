@@ -16,15 +16,22 @@ def count_results(self):
     """
     pattern = r'(?=FROM)(.*)'
     clause = re.findall(pattern, str(self.root_queryset.query))
-def get_field_names(model:
-models.base.ModelBase) -> list[str]:
+
+
+def get_field_names(model: models.Model) -> list[str]:
     """
     returns name of all the fields on a model class except
     for `id` field
     """
-    return [field.name for field in Book._meta.get_fields()
-            if field.name != 'id']
+    return [field.name for field in model._meta.get_fields()]
 
+
+def get_field_verbose_names(model: models.Model) -> list[str]:
+    """
+    returns name of all the fields on a model class except
+    for `id` field
+    """
+    return [field.verbose_name for field in model._meta.get_fields()]
 
 def generate_random_string():
     x = xxhash.xxh64()

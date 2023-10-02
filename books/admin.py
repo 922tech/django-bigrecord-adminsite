@@ -7,8 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import Book
 from django.core.paginator import Paginator
 
-
-# from .utils import get_sql_searchparams
+from .utils import get_field_verbose_names, get_field_names
 
 
 class NonPaginator(Paginator):
@@ -27,6 +26,25 @@ class SearchOnlyChangeList(ChangeList):
     It shows am empty table that gets filled on search.
     It also uses raw SQL queries for optimization purposes.
     """
+
+    @property
+    def all_fields(self):
+        """
+        Returns all field names no a model in a list
+        """
+
+        return get_field_names(self.model)
+    @property
+    def all_fields_verbose_names(self):
+        return get_field_verbose_names(self.model)
+
+    @property
+    def fields_enumeration(self):
+        return enumerate(self.all_fields_verbose_names)
+
+    def set_search_fields(self, search_field_index):
+        self.search_fields = [self.all_fields[search_field_index]]
+        self.model_admin.search_fields = [self.all_fields[search_field_index]]
 
     def get_sql_searchparams(self, delim: str = 'OR') -> str:
 
@@ -74,6 +92,7 @@ class SearchOnlyChangeList(ChangeList):
 
         return kwargs_string
 
+
     def get_sql(self, order_code: str = '', page_number=1) -> str:
         """
         param `order_code`: a django coding for changelist ordering
@@ -84,7 +103,7 @@ class SearchOnlyChangeList(ChangeList):
         if order_code:
             ordering_params = self.get_ordering_kwargs()
         else:
-            ordering_params = ''
+            # ordering_params = ''
             ordering_params = 'ORDER BY id asc'
 
         sql = str(self.root_queryset.query) + f' {self.opts.db_table}' + \
@@ -103,7 +122,12 @@ class SearchOnlyChangeList(ChangeList):
         """
         The main logic of the class lays here.
         """
+
         request_data = request.GET
+        if 'mf' in request_data:
+            search_field_index = int(request_data['mf'])
+            self.set_search_fields(search_field_index)
+
         if 'q' in request_data:
             querystring_dict = request_data['q']
 

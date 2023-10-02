@@ -14,5 +14,7 @@ class AdminForm(ModelForm):
 def index(request):
 
     formset = modelform_factory(Book, fields='__all__')
+    a = Book.objects.filter(title__contains='a').filter(serial_number='sdffdsfdf')
+    list(a)
     return render(request, 'custome_changelist.html', {'form': AdminForm(), 'message': 1111})
 # Create your views here.

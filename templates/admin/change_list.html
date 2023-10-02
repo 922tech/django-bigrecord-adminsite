@@ -5,7 +5,12 @@
   {{ block.super }}
 {#    <script src="{% static 'js/custome_pagination.js' %}"></script>#}
     <script>
-
+    function  addFieldToSearchForm(){
+        console.log('changeing form')
+        const searchForm = document.getElementById('changelist-search')
+        const modelFieldInput = document.getElementById('model-fields-form')
+        searchForm.appendChild(modelFieldInput);
+    }
 
     function setNextPage(isNextPage, el) {
 
@@ -26,29 +31,41 @@
 
         el.href = decodeURIComponent(qString.toString())
     }
-    const nextBtn = document.getElementById('nextBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    window.addEventListener('load', () => setNextPage(false, 'prevBtn'))
+    {#const nextBtn = document.getElementById('nextBtn');#}
+    {#const prevBtn = document.getElementById('prevBtn');#}
+    window.addEventListener('load', () => {
+        setNextPage(false, 'prevBtn');
+        addFieldToSearchForm();
+    })
     window.addEventListener('load', () => setNextPage(true, 'nextBtn'))
-    let b = document.getElementById('btnn')
+
 
     </script>
 {% endblock %}
 
 {% block search %}
-    {{ block.super }}
+{{ block.super }}
+<div id="model-fields-form"
+     class="actions"
+     style="justify-content: space-between;
+      max-width:100%;
+       overflow: visible;
+       margin: 25px
+       {#5px 25px 0 25px#}
+    " >
+    {% for f in cl.fields_enumeration %}
+        <div  style="display: flex">
+            <input class="model-field" id="model_field" type="radio" name="mf" value="{{ f.0 }}" required >
+            <label for="model_filed" style="padding: 5px">{{ f.1 }}</label>
+        </div>
+    {% endfor %}
+</div>
 
-
-{##}
-{#    <label for="page-size">Page Size: </label>#}
-{#    <input id="page-size" type="text"  placeholder="page size">#}
 {% endblock %}
 {% block pagination %}
-{#    {{ page_range }}#}
     <p class="paginator">
         <a id="prevBtn" href="" onload="setNextPage()">prev</a>
         <a id="nextBtn" href="">next</a>
     </p>
 
-{#        {% pagination cl %}#}
 {% endblock %}
