@@ -3,9 +3,9 @@ from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
 from django.utils.functional import cached_property
 from django.views.decorators.csrf import csrf_exempt
+from django.core.paginator import Paginator
 
 from .models import Book
-from django.core.paginator import Paginator
 
 from .utils import get_field_verbose_names, get_field_names
 
@@ -27,13 +27,17 @@ class SearchOnlyChangeList(ChangeList):
     It also uses raw SQL queries for optimization purposes.
     """
 
+    def __init__(self, *args, **kwargs):
+        super(SearchOnlyChangeList, self).__init__(*args, **kwargs)
+        self.search_fields = [self.all_fields[0]]
+
     @property
     def all_fields(self):
         """
         Returns all field names no a model in a list
         """
-
         return get_field_names(self.model)
+
     @property
     def all_fields_verbose_names(self):
         return get_field_verbose_names(self.model)
@@ -42,12 +46,11 @@ class SearchOnlyChangeList(ChangeList):
     def fields_enumeration(self):
         return enumerate(self.all_fields_verbose_names)
 
-    def set_search_fields(self, search_field_index):
+    def set_search_fields(self, search_field_index=0):
         self.search_fields = [self.all_fields[search_field_index]]
         self.model_admin.search_fields = [self.all_fields[search_field_index]]
 
     def get_sql_searchparams(self, delim: str = 'OR') -> str:
-
         """
         This function is intended to be used for creating a query for searchnig in a model.
         param `model`: the django model to be searched. It should represent the db table that
@@ -66,7 +69,8 @@ class SearchOnlyChangeList(ChangeList):
 
         table = self.opts.db_table
         search_fields = self.search_fields
-        q = [f"LOWER({table}.{i}::text) LIKE LOWER(%s::text) " for i in search_fields]
+        q = [
+            f"LOWER({table}.{i}::text) LIKE LOWER(%s::text) " for i in search_fields]
         # Using LIKE was more efficient than ILIKE in the tests
         # Use of lower-casing along with  `LIKE` was a more
         # efficient way than using `ILIKE`
@@ -88,10 +92,10 @@ class SearchOnlyChangeList(ChangeList):
 
         order_enum = self.get_ordering_field_columns()
         kwargs = {self.list_display[i]: order_enum[i] for i in order_enum}
-        kwargs_string = 'ORDER BY ' + ', '.join([f'{i} {kwargs[i]}' for i in kwargs])
+        kwargs_string = 'ORDER BY ' + \
+            ', '.join([f'{i} {kwargs[i]}' for i in kwargs])
 
         return kwargs_string
-
 
     def get_sql(self, order_code: str = '', page_number=1) -> str:
         """
@@ -107,8 +111,9 @@ class SearchOnlyChangeList(ChangeList):
             ordering_params = 'ORDER BY id asc'
 
         sql = str(self.root_queryset.query) + f' {self.opts.db_table}' + \
-              ' WHERE ' + searchparams + ordering_params \
-              + f' LIMIT {self.list_per_page}' + f' OFFSET {page_number * self.list_per_page - self.list_per_page}'
+            ' WHERE ' + searchparams + ordering_params \
+            + f' LIMIT {self.list_per_page}' + \
+            f' OFFSET {page_number * self.list_per_page - self.list_per_page}'
 
         return sql
 
@@ -154,22 +159,21 @@ class SearchOnlyChangeList(ChangeList):
         return
 
 
-@admin.register(Book)
-class Admin(admin.ModelAdmin):
+class OptimizedAdminSearchMixin:
+
     show_full_result_count = False
     # to get rid of the count query
-    list_display = ['id', 'title', 'serial_number', 'publication_date']
-    lookup_fields = ['title']
-    search_fields = ["title", 'serial_number']
     list_per_page = 15
-    paginator_cls = NonPaginator
-    paginator_cls.count = list_per_page
-    paginator = paginator_cls
+    _paginator_cls = NonPaginator
+    _paginator_cls.count = list_per_page
+    paginator = _paginator_cls
     # the value of list_per_page should be equal to the value of NonPaginator.count
 
     def get_changelist(self, request, **kwargs):
         return SearchOnlyChangeList
 
-    @csrf_exempt
-    def changelist_view(self, request, extra_context=None):
-        return super().changelist_view(request, extra_context)
+
+@admin.register(Book)
+class MyAdmin(OptimizedAdminSearchMixin, admin.ModelAdmin):
+    list_display = ['id', 'title']
+    pass
