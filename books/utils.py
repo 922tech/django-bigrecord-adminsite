@@ -1,3 +1,4 @@
+import csv
 import re
 import random
 import time
@@ -32,6 +33,7 @@ def get_field_verbose_names(model: models.Model) -> list[str]:
     for `id` field
     """
     return [field.verbose_name for field in model._meta.get_fields()]
+
 
 def generate_random_string():
     x = xxhash.xxh64()
@@ -137,6 +139,43 @@ def fake_creator() -> dict[str, Any]:
         'serial_number': generate_random_string(),
         'description': faker.text(random.randint(10, 100)),
     }
+
+
+def fake_list_creator(ID) -> list:
+    faker = Faker('en_US')
+    DATE = faker.date()
+    return [
+        ID,
+        generate_random_string(),
+        str(DATE),
+        str(random.randint(10, 10000)),
+        str(generate_random_string()),
+        faker.text(random.randint(10, 100)),
+    ]
+
+
+def make_csv_row(l: list) -> str:
+    return ', '.join(l) + r'\n'
+
+
+def create_header_row(model):
+    field_names = get_field_names(model)
+    return ', '.join(field_names)
+
+
+def create_fake_csv(model, number):
+    last_id = model.objects.last().id
+    data_row = (fake_list_creator(_id)
+                for _id in range(last_id+1, number+last_id))
+
+    with open('fake_books.csv', 'w') as f:
+        csv_writer = csv.writer(f)
+        header_row = create_header_row(model)
+
+        csv_writer.writerow(header_row)
+
+        for r in data_row:
+            csv_writer.writerow(r)
 
 
 def fake_field_creator(how_many=100):

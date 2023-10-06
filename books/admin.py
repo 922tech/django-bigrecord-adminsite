@@ -28,7 +28,7 @@ class SearchOnlyChangeList(ChangeList):
     """
 
     def __init__(self, *args, **kwargs):
-        super(SearchOnlyChangeList, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.search_fields = [self.all_fields[0]]
 
     @property
@@ -175,5 +175,6 @@ class OptimizedAdminSearchMixin:
 
 @admin.register(Book)
 class MyAdmin(OptimizedAdminSearchMixin, admin.ModelAdmin):
+    # The preceedance of the parent classes is important
     list_display = ['id', 'title']
     pass
