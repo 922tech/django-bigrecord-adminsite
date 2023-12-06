@@ -13,10 +13,6 @@ from .utils import get_field_verbose_names, get_field_names
 class NonPaginator(Paginator):
     @cached_property
     def count(self):
-        """
-        Important! This method should return the exact value
-        of list_per_page attribute of the admin class
-        """
         return 10
 
 
@@ -127,7 +123,6 @@ class SearchOnlyChangeList(ChangeList):
         """
         The main logic of the class lays here.
         """
-
         request_data = request.GET
         if 'mf' in request_data:
             search_field_index = int(request_data['mf'])
@@ -146,9 +141,6 @@ class SearchOnlyChangeList(ChangeList):
             else:
                 page_number = 1
             sql_string = self.get_sql(order_code, page_number)
-            # query = self.model.objects.raw(
-            #     sql_string, [f'%{request_data["q"]}%'] * len(self.search_fields)
-            # )
             queryset = self.get_search_queryset(sql_string, request_data)
             return queryset
 
@@ -177,4 +169,3 @@ class OptimizedAdminSearchMixin:
 class MyAdmin(OptimizedAdminSearchMixin, admin.ModelAdmin):
     # The preceedance of the parent classes is important
     list_display = ['id', 'title']
-    pass
