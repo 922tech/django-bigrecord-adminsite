@@ -100,13 +100,12 @@ class SearchOnlyChangeList(ChangeList):
         if order_code:
             ordering_params = self.get_ordering_kwargs()
         else:
-            # ordering_params = ''
             ordering_params = 'ORDER BY id asc'
 
         sql = str(self.root_queryset.query) + f' {self.opts.db_table}' + \
             ' WHERE ' + searchparams + ordering_params \
             + f' LIMIT {self.list_per_page}' + \
-            f' OFFSET {page_number * self.list_per_page - self.list_per_page}'
+            f' OFFSET { self.list_per_page * (page_number - 1) }'
 
         return sql
 
@@ -126,8 +125,6 @@ class SearchOnlyChangeList(ChangeList):
             self.set_search_fields(search_field_index)
 
         if 'q' in request_data:
-            querystring_dict = request_data['q']
-
             if 'o' in request_data:
                 order_code = request_data['o']
             else:
