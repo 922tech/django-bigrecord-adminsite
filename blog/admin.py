@@ -8,9 +8,6 @@ from .models import Post
 class Admin(admin.ModelAdmin):
 
     list_display = ['id', 'title', 'author']
-    lookup_fields = search_fields = ['title', 'author', ]
-
-    def get_changelist(self, request, **kwargs):
-        return SearchOnlyChangeList
-
-# Register your models here.
+    lookup_fields = search_fields = ['title', 'author']
+    list_per_page = 2
+    list_filter = ['id']

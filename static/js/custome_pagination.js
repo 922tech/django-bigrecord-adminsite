@@ -1,30 +1,27 @@
-const nextBtn = document.getElementById('nextBtn');
-const prevBtn = document.getElementById('prevBtn');
-alert('sdsfdf')
-function setNextPage() {
 
-    console.log('setNextPage');
+function  addFieldToSearchForm(){
+    const searchForm = document.getElementById('changelist-search');
+    const modelFieldInput = document.getElementById('model-fields-form');
+    searchForm.appendChild(modelFieldInput);
+}
 
-    const el = document.getElementById('nextBtn');
+function setNextPage(isNextPage, el) {
+    el = document.getElementById(el);
     const qString = new URLSearchParams(el.href)
-
-    if (qString.get('q') === null) {
-        return
-    }
-
     const pageNumber = qString.get('p')
 
     if (qString.get('p') != null) {
-        qString.set('p', (parseInt(pageNumber) + 1).toString())
-        console.log(qString.get('p'))
-    } else {
-        qString.set('p', '2')
+        if (!(parseInt(qString.get('p')) < 2 && !isNextPage)){
+            qString.set('p', isNextPage ? (parseInt(pageNumber) + 1).toString() : (parseInt(pageNumber) - 1))
+        }
     }
-
-    el.href = '//' + decodeURIComponent(q.toString())
-    console.log(el.href)
+    else {
+        qString.set('p', isNextPage?'2':'1')
+    }
+    el.href = decodeURIComponent(qString.toString())
 }
-
-let b = document.getElementById('btnn')
-console.log(b);
-b.addEventListener('onclick', setNextPage);
+window.addEventListener('load', () => {
+    setNextPage(false, 'prevBtn');
+    addFieldToSearchForm();
+})
+window.addEventListener('load', () => setNextPage(true, 'nextBtn'))

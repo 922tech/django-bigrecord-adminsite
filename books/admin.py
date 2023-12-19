@@ -1,8 +1,6 @@
-import inspect
 from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
 from django.utils.functional import cached_property
-from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 
 from .models import Book
@@ -59,7 +57,7 @@ class SearchOnlyChangeList(ChangeList):
         example:
         ```
         get_sql_searchparams(Book, ['col1', 'col2'], 'plant')
-        >>> 'UPPER(books_book.col1::text) LIKE %s AND UPPER(books_book.col2::text) LIKE %s '
+        >>> 'LOWER(books_book.col1::text) LIKE %s AND LOWER(books_book.col2::text) LIKE %s '
         ```
         """
 
@@ -67,9 +65,8 @@ class SearchOnlyChangeList(ChangeList):
         search_fields = self.search_fields
         q = [
             f"LOWER({table}.{i}::text) LIKE LOWER(%s::text) " for i in search_fields]
-        # Using LIKE was more efficient than ILIKE in the tests
-        # Use of lower-casing along with  `LIKE` was a more
-        # efficient way than using `ILIKE`
+        # Using LIKE was more efficient than ILIKE in the benchmark
+        # Use of lower-casing along with  `LIKE` was a more efficient way than using `ILIKE`
         length = len(q)
         for i in range(length):
             if i < length - 1:
@@ -154,12 +151,12 @@ class SearchOnlyChangeList(ChangeList):
 class OptimizedAdminSearchMixin:
 
     show_full_result_count = False
-    # to get rid of the count query
-    list_per_page = 15
+    list_per_page = 15  # to get rid of the count query
     _paginator_cls = NonPaginator
     _paginator_cls.count = list_per_page
     paginator = _paginator_cls
     # the value of list_per_page should be equal to the value of NonPaginator.count
+    change_list_template = 'admin/bigrecord_change_list.html'
 
     def get_changelist(self, request, **kwargs):
         return SearchOnlyChangeList
