@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
 from django.utils.functional import cached_property
 from django.core.paginator import Paginator
-
+from django.db import connection
 from .models import Book
 
 from .utils import get_field_verbose_names, get_field_names
@@ -22,6 +22,7 @@ class SearchOnlyChangeList(ChangeList):
     """
 
     def __init__(self, *args, **kwargs):
+        self.search_result_count = None
         super().__init__(*args, **kwargs)
         self.search_fields = [self.all_fields[0]]
 
@@ -100,60 +101,78 @@ class SearchOnlyChangeList(ChangeList):
         if order_code:
             ordering_params = self.get_ordering_kwargs()
         else:
-            ordering_params = 'ORDER BY id asc'
+            ordering_params = f'ORDER BY {self.model_admin.default_sorting_key} asc'
 
         sql = str(self.root_queryset.query) + f' {self.opts.db_table}' + \
             ' WHERE ' + searchparams + ordering_params \
             + f' LIMIT {self.list_per_page}' + \
-            f' OFFSET { self.list_per_page * (page_number - 1) }'
+              f' OFFSET { self.list_per_page * (page_number - 1) }'
 
         return sql
 
-    def get_search_queryset(self, sql_string, request_data):
+    def get_search_queryset(self, sql_string, searched_data):
         queryset = self.model.objects.raw(
-            sql_string, [f'%{request_data["q"]}%'] * len(self.search_fields)
+            sql_string, [f'%{searched_data}%'] * len(self.search_fields)
         )
         return queryset
+
+    def pagination_required(self, request):
+        """deactivating django's default pagination"""
+        return
+
+    def count_search_result(self, searched_data):
+        searchparams = self.get_sql_searchparams()
+        sql = f"SELECT COUNT(*) FROM {self.opts.db_table} WHERE {searchparams}"
+        cursor = connection.cursor()
+        cursor.execute(
+            sql, [f'%{searched_data}%'] * len(self.search_fields))
+        self.search_result_count = cursor.fetchone()[0]
+        return self.search_result_count
+        #  TODO: put the `search_param` and persistant data in the request.session
 
     def get_queryset(self, request):
         """
         The main logic of the class lays here.
         """
         request_data = request.GET
-        if 'mf' in request_data:
+        q = request_data.get('q')
+
+        if not q:
+            return self.root_queryset.none()
+
+        if 'mf' in request_data:  # mf: model_field
+            # model field to lookup
             search_field_index = int(request_data['mf'])
             self.set_search_fields(search_field_index)
 
-        if 'q' in request_data:
-            if 'o' in request_data:
-                order_code = request_data['o']
+        if q:
+            print(request.session.get('search_param'), 'search_param\n\n')
+            if request.session.get('search_param') != q + request_data.get('mf'):
+                request.session['search_param'] = q + request_data.get('mf')
+                request.session['count'] = self.count_search_result(q)
             else:
-                order_code = 0
+                self.search_result_count = request.session['count']
+
+            order_code = request_data.get('o')
 
             if 'p' in request_data:
                 page_number = int(request_data['p'])
             else:
                 page_number = 1
             sql_string = self.get_sql(order_code, page_number)
-            queryset = self.get_search_queryset(sql_string, request_data)
+            queryset = self.get_search_queryset(sql_string, q)
             return queryset
-
-        else:
-            return self.root_queryset.none()
-
-    def pagination_required(self, request):
-        return
 
 
 class OptimizedAdminSearchMixin:
-
+    default_sorting_key = 'id'
+    list_per_page = 15
+    change_list_template = 'admin/bigrecord_change_list.html'
     show_full_result_count = False
-    list_per_page = 15  # to get rid of the count query
     _paginator_cls = NonPaginator
     _paginator_cls.count = list_per_page
     paginator = _paginator_cls
     # the value of list_per_page should be equal to the value of NonPaginator.count
-    change_list_template = 'admin/bigrecord_change_list.html'
 
     def get_changelist(self, request, **kwargs):
         return SearchOnlyChangeList
@@ -161,5 +180,5 @@ class OptimizedAdminSearchMixin:
 
 @admin.register(Book)
 class MyAdmin(OptimizedAdminSearchMixin, admin.ModelAdmin):
-    # The preceedance of the parent classes is important
     list_display = ['id', 'title']
+    default_sorting_key = 'title'

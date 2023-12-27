@@ -38,18 +38,24 @@
 {{ block.super }}
 <div id="model-fields-form"
      class="actions"
-     style="justify-content: space-between;
-      max-width:100%;
+     style="
+       justify-content: space-between;
+       max-width:100%;
        overflow: visible;
        margin: 25px
-       {#5px 25px 0 25px#}
     " >
+
     {% for f in cl.fields_enumeration %}
         <div  style="display: flex">
             <input class="model-field" id="model_field" type="radio" name="mf" value="{{ f.0 }}" required >
             <label for="model_filed" style="padding: 5px">{{ f.1 }}</label>
         </div>
+
     {% endfor %}
+    <div style="font-weight: bolder;">
+        <img src="https://cdn-icons-png.flaticon.com/512/6357/6357834.png" height="35px" width="40px" alt="" >
+        {{ cl.search_result_count }} Records
+    </div>
 </div>
 
 {% endblock %}
