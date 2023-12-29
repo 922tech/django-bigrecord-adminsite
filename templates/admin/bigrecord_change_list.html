@@ -59,8 +59,10 @@
 </div>
 
 {% endblock %}
+
 {% block pagination %}
-    <p class="paginator">
+{{ block.super }}
+<p class="paginator">
         <a id="prevBtn" href="" onload="setNextPage()">prev</a>
         <a id="nextBtn" href="">next</a>
     </p>
