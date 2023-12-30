@@ -158,28 +158,23 @@ class SearchOnlyChangeList(ChangeList):
             search_field_index = int(request_data['mf'])
             self.lookup_field = self.search_fields[search_field_index]
 
-        if q:
-            if request.session.get('search_param') != q + request_data.get('mf'):
-                request.session['search_param'] = q + request_data.get('mf')
-                self.model_admin.paginator.count = request.session['count'] = self.count_search_result(
-                    q)
-            else:
-                self.search_result_count = request.session['count']
+        if request.session.get('search_param') != q + request_data.get('mf'):
+            request.session['search_param'] = q + request_data.get('mf')
+            self.model_admin.paginator.count = \
+                request.session['count'] = self.count_search_result(q)
+        else:
+            self.search_result_count = request.session['count']
 
-            order_code = request_data.get('o')
+        order_code = request_data.get('o')
+        page_number = request_data.get('p') if request_data.get('p') else 1
 
-            if 'p' in request_data:
-                page_number = int(request_data['p'])
-            else:
-                page_number = 1
+        if '__' in self.lookup_field:
+            sql_string = ''
+        else:
+            sql_string = self.get_sql(order_code, page_number)
 
-            if '__' in self.lookup_field:
-                sql_string = ''
-            else:
-                sql_string = self.get_sql(order_code, page_number)
-
-            queryset = self.get_search_queryset(sql_string, q)
-            return queryset
+        queryset = self.get_search_queryset(sql_string, q)
+        return queryset
 
     def get_results(self, request):
         paginator = self.model_admin.get_paginator(
