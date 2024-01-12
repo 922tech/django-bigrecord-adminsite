@@ -1,26 +1,45 @@
-from typing import Sequence
+from typing import Sequence, Union
 from django.contrib import admin
 from django.contrib.admin.views.main import ChangeList
-from django.utils.functional import cached_property
-from django.core.paginator import Paginator
 from django.db import connection
-from django.core.paginator import InvalidPage
+from django.db.models.sql.datastructures import Join
+from django.db.models.sql.query import Query, get_order_dir
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage, InvalidPage
 from django.contrib.admin.options import IncorrectLookupParameters
 from .models import Book, Author
-from .utils import get_field_verbose_names, get_field_names
 
+
+class EmptyPagePaginator(Paginator):
+    """
+    Allows the pages to be empty or even the page number be greater
+    than the total page count.
+    """
+    def validate_number(self, number):
+        try:
+            if isinstance(number, float) and not number.is_integer():
+                raise ValueError
+            number = int(number)
+        except (TypeError, ValueError):
+            raise PageNotAnInteger("That page number is not an integer")
+        if number < 1:
+            raise InvalidPage("That page number is less than 1")
+        return number
 
 class SearchOnlyChangeList(ChangeList):
     """
     This class provides an optimized way to make a change list for a django app.
-    It shows am empty table that gets filled on search.
+    It shows an empty change list that gets filled after searching.
     It also uses raw SQL queries for optimization purposes.
+    This class is tightly coupled with `OptimizedAdminSearchMixin`
     """
 
     def __init__(self, *args, **kwargs):
         self.search_result_count = 0
+        self.join_clause = ''
         super().__init__(*args, **kwargs)
         self.lookup_field = None
+        self.lookup_related_table = None
+        self.related_query = ''
 
     @property
     def related_fields(self):
@@ -28,33 +47,77 @@ class SearchOnlyChangeList(ChangeList):
             i.split('__') for i in self.search_fields if '__' in i
         ]
 
-    @staticmethod
-    def get_join_clause(seq: Sequence):
+    def get_join_clause(self, model, seq: Union[list, tuple], join_clause='') -> str:
         """
-        param seq: sequence of related fields to join
+        Gets a sequence of related fileds in an ordered sequence and creates a complete 
+        SQL JOIN clasue and puts it under `join_clause` varaible's name.
+        NOTE that `join_clause` should be another variable in an outer scope otherwise
+        it will change in every recursion.
+
+        - param model: django model to JOIN
+        - param seq: sequence of related fields to join
+        This method changes the self.join_clause attr on class
         e.g. 
-        >>> get_join_clause([''])
+        >>> get_join_clause(Library, ['book', 'author'], self.join_clause)
+        >>> self.join_clause --> 
+        ' JOIN book on "books_book"."author_id"="books_author"."id" JOIN author '
         """
-        return ' '.join('JOIN ')
+        related_field = model._meta.get_field(seq[0])
+        related_model = related_field.related_model
+        if len(seq) > 1:
+            seq.pop(0)
+            self.lookup_related_table = related_model._meta.db_table
+            self.get_join_clause(related_model, seq, self.join_clause)
+            self.join_clause = f''' 
+            INNER JOIN {related_model._meta.db_table} 
+            ON
+            "{model._meta.db_table}"."{related_field.column}" =
+            "{related_model._meta.db_table}"."{related_field.target_field.column}" 
+            ''' + self.join_clause
+            self.related_lookup_table = related_model._meta.db_table
+        else:
+            return
+        return
 
-    @property
-    def all_fields(self):
-        """
-        Returns all field names on a model in a list
-        """
-        return get_field_names(self.model)
+    def get_related_queries(self, model, seq: Union[list, tuple],search_param):
+        related_field = model._meta.get_field(seq[0])
+        local_field, reference_field = related_field.related_fields
+        related_model = related_field.related_model
+        search_clause = self._get_search_clause(model._meta.db_table, related_field.column)
 
-    @property
-    def all_fields_verbose_names(self):
-        return get_field_verbose_names(self.model)
-
+        if first:
+            query = f'''
+            SELECT {model._meta.pk} FROM {model._meta.db_table}
+            WHERE  {search_clause}
+            '''
+            params = [search_param]
+            first_pk = model.objects.raw(query, params)
+        else:
+            query = f'''
+            SELECT {related_field.column} FROM {model._meta.db_table}
+            WHERE  {search_param}
+            '''
+        target_pk = model.objects.raw(f'''
+            SELECT {related_field.column} FROM {model._meta.db_table}
+            WHERE  {search_param}
+        ''')
+        if len(seq) > 1:
+            seq.pop(0)
+            self.lookup_related_table = related_model._meta.db_table
+            self.get_join_clause(related_model, seq, self.join_clause)
+            self.join_clause = f''' 
+            SELECT {related_field.target_field.column}
+            INNER JOIN {related_model._meta.db_table} 
+            WHERE
+            "{model._meta.db_table}"."{related_field.column}" =
+            "{related_model._meta.db_table}"."{related_field.target_field.column}" 
+            ''' 
+        
+        return
+    
     @property
     def fields_enumeration(self):
         return enumerate(self.search_fields)
-
-    def set_search_fields(self, search_field_index=0):
-        self.search_fields = [self.all_fields[search_field_index]]
-        self.model_admin.search_fields = [self.all_fields[search_field_index]]
 
     def get_sql_searchparams(self, delim: str = 'OR') -> str:
         """
@@ -75,8 +138,7 @@ class SearchOnlyChangeList(ChangeList):
 
         table = self.opts.db_table
         search_fields = self.search_fields
-        q = [
-            f"LOWER({table}.{i}::text) LIKE LOWER(%s::text) " for i in search_fields]
+        q = [self._get_search_clause(table, i) for i in search_fields]
         # Using LIKE was more efficient than ILIKE in the benchmark
         # Use of lower-casing along with  `LIKE` was a more efficient way than using `ILIKE`
         length = len(q)
@@ -85,9 +147,20 @@ class SearchOnlyChangeList(ChangeList):
                 q[i] += delim + ' '
         return ''.join(q)
 
-    def get_search_clause(self, field):
-        table = self.opts.db_table
-        return f"LOWER({table}.{field}::text) LIKE LOWER(%s::text) "
+    @staticmethod
+    def _get_search_clause(table: str, field: str):
+        return f"""LOWER("{table}"."{field}"::text) LIKE LOWER(%s::text) """
+
+    def get_search_clause(self):
+        if not '__' in self.lookup_field:
+            return self._get_search_clause(self.opts.db_table, self.lookup_field)
+        else:
+            return self._get_search_clause(
+                self.lookup_related_table, self.lookup_field.split('__')[-1])
+
+    @staticmethod
+    def get_last_joined_table(table, field):
+        pass
 
     def get_ordering_kwargs(self) -> str:
         """
@@ -101,8 +174,7 @@ class SearchOnlyChangeList(ChangeList):
 
         order_enum = self.get_ordering_field_columns()
         kwargs = {self.list_display[i]: order_enum[i] for i in order_enum}
-        kwargs_string = 'ORDER BY ' + \
-            ', '.join([f'{i} {kwargs[i]}' for i in kwargs])
+        kwargs_string = ', '.join([f'{i} {kwargs[i]}' for i in kwargs])
 
         return kwargs_string
 
@@ -111,21 +183,34 @@ class SearchOnlyChangeList(ChangeList):
         param `order_code`: a django coding for changelist ordering
         returns a complete sql query with limit & offset
         """
-        root_query = str(self.root_queryset.query)
-        from_clause_index = root_query.capitalize().find('FROM')
-        select_clause = root_query[:from_clause_index]
 
-        searchparams = self.get_search_clause(self.lookup_field)
+        if '__' in self.lookup_field:
+            seq = self.lookup_field.split('__')
+            if self.model_admin.use_join_query:
+                self.get_join_clause(self.model, seq)
+
+        search_clause = self.get_search_clause()
+        self.search_clause = search_clause
         if order_code:
             ordering_params = self.get_ordering_kwargs()
         else:
-            ordering_params = f"""
-            ORDER BY {self.model_admin.default_sorting_key} 
-            {self.model_admin.default_sorting_order}"""
+            default_ordering = get_order_dir(
+                self.model_admin.default_sorting_key
+            )
+            ordering_params = ' '.join(default_ordering)
 
-        sql = root_query + ' WHERE ' + searchparams + ordering_params \
-            + f' LIMIT {self.list_per_page}' + \
-              f' OFFSET {self.list_per_page * (page_number - 1)}'
+        root_query = str(self.root_queryset.query)
+        
+        next_offset = self.list_per_page * (page_number - 1)
+        sql = f"""
+                {root_query} {self.join_clause} 
+                WHERE {search_clause}
+                ORDER BY {ordering_params}
+                LIMIT {self.list_per_page}
+                OFFSET {next_offset}
+                """
+        self.from_record = next_offset
+        self.to_record = next_offset + self.list_per_page
         return sql
 
     def get_search_queryset(self, sql_string: str, searched_data: str):
@@ -137,8 +222,8 @@ class SearchOnlyChangeList(ChangeList):
         return
 
     def count_search_result(self, searched_data: str) -> int:
-        searchparams = self.get_search_clause(self.lookup_field)
-        sql = f"SELECT COUNT(*) FROM {self.opts.db_table} WHERE {searchparams}"
+        sql = f"""SELECT COUNT(*) FROM {self.opts.db_table}
+                  {self.join_clause} WHERE {self.search_clause}"""
         cursor = connection.cursor()
         cursor.execute(sql, [f'%{searched_data}%'])
         self.search_result_count = cursor.fetchone()[0]
@@ -154,9 +239,14 @@ class SearchOnlyChangeList(ChangeList):
         if not q:
             return self.root_queryset.none()
 
-        if 'mf' in request_data:  # mf: model_field to look up for
-            search_field_index = int(request_data['mf'])
-            self.lookup_field = self.search_fields[search_field_index]
+        # mf: model_field index in search_fields to look up
+        search_field_index = int(request_data.get('mf', 0))
+        self.lookup_field = self.search_fields[search_field_index]
+
+        order_code = request_data.get('o')
+        page_number = int(request_data.get('p', 1))
+        sql_string = self.get_sql(order_code, page_number)
+        queryset = self.get_search_queryset(sql_string, q)
 
         if request.session.get('search_param') != q + request_data.get('mf'):
             request.session['search_param'] = q + request_data.get('mf')
@@ -165,15 +255,6 @@ class SearchOnlyChangeList(ChangeList):
         else:
             self.search_result_count = request.session['count']
 
-        order_code = request_data.get('o')
-        page_number = request_data.get('p') if request_data.get('p') else 1
-
-        if '__' in self.lookup_field:
-            sql_string = ''
-        else:
-            sql_string = self.get_sql(order_code, page_number)
-
-        queryset = self.get_search_queryset(sql_string, q)
         return queryset
 
     def get_results(self, request):
@@ -191,7 +272,7 @@ class SearchOnlyChangeList(ChangeList):
         multi_page = result_count > self.list_per_page
 
         try:
-            result_list = self.queryset._clone()
+            result_list = list(self.queryset._clone())
         except InvalidPage:
             raise IncorrectLookupParameters
 
@@ -211,27 +292,32 @@ class SearchOnlyChangeList(ChangeList):
 
 class OptimizedAdminSearchMixin:
     """
-    Wraps the whole optimized django admin site logic.
+    Wraps the whole optimized admin site logic for searching.
     To use, inherit this class in your admin class along with django's ModelAdmin.
     """
-    default_sorting_key = 'id'
+    default_sorting_key = '-id'
     search_fields = ['id']
-    default_sorting_order = 'ASC'  # or 'DESC'
     list_per_page = 15
     change_list_template = 'admin/bigrecord_change_list.html'
     show_full_result_count = False
+    paginator = EmptyPagePaginator
+    use_join_query = True
 
     def get_changelist(self, request, **kwargs):
         return SearchOnlyChangeList
 
 
+
 @admin.register(Book)
 class MyAdmin(OptimizedAdminSearchMixin, admin.ModelAdmin):
     list_display = ['id', 'title', 'price']
-    default_sorting_key = 'title'
-    search_fields = ['id', 'title', 'price', 'author__name']
+    default_sorting_key = '-title'
+    search_fields = ['id', 'title', 'price',
+                     'author__user__username', 'author__name']
 
 
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user']
+    search_fields = ['user__username']
     pass
