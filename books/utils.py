@@ -2,11 +2,13 @@ import csv
 import re
 import random
 import time
-from faker import Faker
-from .models import Book
+from django.contrib.auth.models import User
 from django.db import models
 from typing import Any, Callable, Union, Sequence
 import xxhash
+from faker import Faker
+from .models import Book
+from model_bakery import baker
 
 
 def count_results(self):
@@ -179,5 +181,6 @@ def create_fake_csv(model, number):
 
 
 def fake_field_creator(how_many=100):
-    fake_category_factory = FakeModelFactory(Book, fake_creator)
-    fake_category_factory.create_fake_record(how_many)
+    baker.make(User, _quantity=how_many)
+    baker.make('books.Author', _quantity=how_many)
+    baker.make('books.Book', _quantity=how_many, )

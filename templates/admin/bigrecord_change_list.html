@@ -54,13 +54,15 @@
     {% endfor %}
     <div style="font-weight: bolder;">
         <img src="https://cdn-icons-png.flaticon.com/512/6357/6357834.png" height="35px" width="40px" alt="" >
-        {{ cl.search_result_count }} Records
+        {{ cl.search_result_count }} Records   -   From {{cl.from_record}} to {{cl.to_record}}
     </div>
 </div>
 
 {% endblock %}
+
 {% block pagination %}
-    <p class="paginator">
+{{ block.super }}
+<p class="paginator">
         <a id="prevBtn" href="" onload="setNextPage()">prev</a>
         <a id="nextBtn" href="">next</a>
     </p>
